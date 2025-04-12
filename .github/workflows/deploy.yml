@@ -30,7 +30,7 @@ jobs:
         uses: denoland/deployctl@v1
         with:
           project: "neighborneighbor"
-          entrypoint: "main.tsx"
+          entrypoint: "index.tsx"
           root: "."
           
           
