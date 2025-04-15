@@ -4,20 +4,28 @@
 
 import * as $_404 from "./routes/_404.tsx";
 import * as $_app from "./routes/_app.tsx";
+import * as $api_pairings from "./routes/api/pairings.ts";
 import * as $greet_name_ from "./routes/greet/[name].tsx";
 import * as $index from "./routes/index.tsx";
+import * as $pairings_index from "./routes/pairings/index.tsx";
+import * as $CityMaps from "./islands/CityMaps.tsx";
 import * as $Map from "./islands/Map.tsx";
+import * as $PairingControls from "./islands/PairingControls.tsx";
 import type { Manifest } from "$fresh/server.ts";
 
 const manifest = {
   routes: {
     "./routes/_404.tsx": $_404,
     "./routes/_app.tsx": $_app,
+    "./routes/api/pairings.ts": $api_pairings,
     "./routes/greet/[name].tsx": $greet_name_,
     "./routes/index.tsx": $index,
+    "./routes/pairings/index.tsx": $pairings_index,
   },
   islands: {
+    "./islands/CityMaps.tsx": $CityMaps,
     "./islands/Map.tsx": $Map,
+    "./islands/PairingControls.tsx": $PairingControls,
   },
   baseUrl: import.meta.url,
 } satisfies Manifest;
