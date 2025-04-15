@@ -76,16 +76,58 @@ export default function Map({
   const [debugMessage, setDebugMessage] = useState<string | null>(null);
   const [isMapInitialized, setIsMapInitialized] = useState(false);
   
+  // Create a unique identifier for this specific map instance
+  // This will help ensure we properly reinitialize when the city changes
+  const mapInstanceId = `${id}-${center[0]}-${center[1]}`;
+  
+  // Complete cleanup function to ensure all resources are freed when map changes
+  const cleanupMap = () => {
+    console.log(`Cleaning up map ${id}`);
+    
+    // Remove all matched markers first
+    matchedMarkersRef.current.forEach(marker => {
+      try {
+        marker.remove();
+      } catch (err) {
+        console.error(`Error removing matched marker for ${id}:`, err);
+      }
+    });
+    matchedMarkersRef.current = [];
+    
+    // Remove the selected point marker
+    if (markerRef.current) {
+      try {
+        markerRef.current.remove();
+      } catch (err) {
+        console.error(`Error removing selected marker for ${id}:`, err);
+      }
+      markerRef.current = null;
+    }
+    
+    // Remove the map instance
+    if (mapInstanceRef.current) {
+      try {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      } catch (e) {
+        console.error(`Error removing map ${id}:`, e);
+      }
+    }
+    
+    // Reset initialization state
+    setIsMapInitialized(false);
+  };
+  
   // One-time initialization of the map
   useEffect(() => {
     // Only run in browser environment
-    if (typeof window === "undefined" || isMapInitialized) return;
+    if (typeof window === "undefined") return;
     
-    console.log(`Initializing map ${id}`);
+    console.log(`Initializing map ${id} with center: ${center[0]}, ${center[1]}`);
     
-    // Track initialization
-    setIsMapInitialized(true);
-
+    // Clean up any existing map for this ref before creating a new one
+    cleanupMap();
+    
     let L: LeafletMapStatic | null = null;
     let map: LeafletMap | null = null;
     let unsubscribe: () => void = () => {};
@@ -122,7 +164,7 @@ export default function Map({
         map = L.map(mapRef.current).setView(center, zoom);
         mapInstanceRef.current = map;
         
-        console.log(`Map ${id} created successfully`);
+        console.log(`Map ${id} created successfully with center ${center[0]}, ${center[1]}`);
         
         // Add tile layer (OpenStreetMap)
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -131,11 +173,13 @@ export default function Map({
         }).addTo(map);
 
         // Add click handler to the map to select points
-        map.on('click', (e: LeafletEvent) => {
+        const handleMapClick = (e: LeafletEvent) => {
           console.log(`Click on map ${id}:`, e.latlng);
           const { lat, lng } = e.latlng;
           onPointSelect([lat, lng]);
-        });
+        };
+        
+        map.on('click', handleMapClick);
 
         // Add mousemove handler if onPointHover is provided
         if (onPointHover) {
@@ -166,11 +210,12 @@ export default function Map({
           map.on('mousemove', handleMouseMove);
           map.on('mouseout', handleMouseOut);
           
-          // Add cleanup for these event handlers
+          // Make sure our event handlers are removed on cleanup
           const originalRemove = map.remove;
           map.remove = function() {
             map?.off('mousemove', handleMouseMove);
             map?.off('mouseout', handleMouseOut);
+            map?.off('click', handleMapClick);
             return originalRemove.apply(this, arguments as unknown as []);
           };
         }
@@ -219,6 +264,9 @@ export default function Map({
           `;
           document.head.appendChild(style);
         }
+        
+        // Mark initialization as complete
+        setIsMapInitialized(true);
       } catch (error) {
         console.error(`Error initializing map ${id}:`, error);
       }
@@ -226,35 +274,24 @@ export default function Map({
       console.error("Failed to load Leaflet:", error);
     });
     
-    // Cleanup function to destroy map when component unmounts
+    // Cleanup function to destroy map when component unmounts or city changes
     return () => {
-      console.log(`Cleaning up map ${id}`);
       unsubscribe();
-      
-      if (mapInstanceRef.current) {
-        try {
-          mapInstanceRef.current.remove();
-          mapInstanceRef.current = null;
-        } catch (e) {
-          console.error(`Error removing map ${id}:`, e);
-        }
-      }
-      
-      // Reset initialization state
-      setIsMapInitialized(false);
+      cleanupMap();
     };
-  }, [id]); // Only depend on ID to prevent reinitializations
+  }, [mapInstanceId]); // Depend on mapInstanceId to reinitialize when city changes
   
-  // Update view when center or zoom changes
+  // Update view when center or zoom changes without full reinitialization
   useEffect(() => {
-    if (mapInstanceRef.current) {
+    if (mapInstanceRef.current && isMapInitialized) {
+      console.log(`Updating view for ${id} to center: ${center[0]}, ${center[1]}, zoom: ${zoom}`);
       mapInstanceRef.current.setView(center, zoom);
     }
-  }, [center, zoom]);
+  }, [center, zoom, isMapInitialized]);
   
   // Handle matched points updates
   useEffect(() => {
-    if (typeof window === "undefined" || !matchedPoints) return;
+    if (typeof window === "undefined" || !matchedPoints || !isMapInitialized) return;
     
     console.log(`Updating matched points for ${id}:`, matchedPoints.value);
     
@@ -349,7 +386,7 @@ export default function Map({
       });
       matchedMarkersRef.current = [];
     };
-  }, [matchedPoints?.value]); // Only depend on matchedPoints value changes
+  }, [matchedPoints?.value, isMapInitialized]); // Depend on both matchedPoints and initialization
 
   return (
     <div class="map-container">
@@ -357,8 +394,14 @@ export default function Map({
       <div 
         id={id} 
         ref={mapRef} 
+        key={mapInstanceId} // Add key to ensure DOM element is recreated for new cities
         class="h-80 w-full rounded-lg shadow-md relative"
       >
+        {!isMapInitialized && (
+          <div class="absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-500">
+            Loading map...
+          </div>
+        )}
         {isHovering && (
           <div class="absolute top-0 right-0 bg-blue-500 text-white text-xs px-2 py-1 rounded-bl-md z-[9000]">
             Hovering

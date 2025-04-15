@@ -3,13 +3,19 @@ import { Signal, useComputed, useSignal } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
 import Map from "./Map.tsx";
 import PairingControls from "./PairingControls.tsx";
+import { CityLocation } from "./CitySelector.tsx";
 import type {
-    CityMapsProps,
     LocationPoint,
     MatchedPointsParams,
 } from "../src/interfaces.ts";
 import { isLocationPoint } from "../src/validation.ts";
 import { LocationPairing, PairingRecord } from "../src/interfaces.ts";
+
+// Define the props interface using CityLocation from CitySelector
+interface CityMapsProps {
+    cities: [CityLocation, CityLocation];
+    cityKeys: [string, string]; // API keys for the cities (e.g., ["seattle", "portland"])
+}
 
 // Helper to validate a pairing object with dynamic city keys
 function isValidPairingRecord(
@@ -123,6 +129,10 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
     const [city1, city2] = cities;
     const [city1Key, city2Key] = cityKeys;
 
+    // Use a key based on city pairs to help identify when cities change
+    const citiesKey = `${city1Key}-${city2Key}`;
+    console.log(`Rendering CityMaps with cities: ${citiesKey}`);
+
     const city1Point = useSignal<[number, number] | null>(null);
     const city2Point = useSignal<[number, number] | null>(null);
     const city1HoverPoint = useSignal<[number, number] | null>(null);
@@ -190,14 +200,48 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
         }
     };
 
+    // Reset all state when cities change
+    useEffect(() => {
+        console.log(`Cities changed to ${city1.name} and ${city2.name}, resetting state`);
+        
+        // Reset all signal values
+        city1Point.value = null;
+        city2Point.value = null;
+        city1HoverPoint.value = null;
+        city2HoverPoint.value = null;
+        pairings.value = [];
+        
+        // Clear stateful values
+        setDebug(null);
+        setError(null);
+        setLastFetch(null);
+        
+        // Then fetch pairings for the new cities
+        fetchPairings();
+    }, [citiesKey]);
+
     // Create some test pairings if needed
     const createTestPairings = async () => {
         try {
             const response = await fetch("/api/pairings");
             if (response.ok) {
                 const data = await response.json();
-                if (Array.isArray(data) && data.length === 0) {
-                    console.log("No pairings found, creating test pairings");
+                
+                // Check if we have pairings specifically for the current city pair
+                let pairingsForCurrentCities = 0;
+                if (Array.isArray(data)) {
+                    pairingsForCurrentCities = data.filter(record => {
+                        const pairing = record?.pairing;
+                        return pairing && 
+                               pairing[city1Key] && 
+                               pairing[city2Key] && 
+                               isLocationPoint(pairing[city1Key]) && 
+                               isLocationPoint(pairing[city2Key]);
+                    }).length;
+                }
+                
+                if (pairingsForCurrentCities === 0) {
+                    console.log(`No pairings found for ${city1.name}-${city2.name}, creating test pairings`);
 
                     // Create test pairings
                     await addTestPairing(
@@ -228,12 +272,12 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
                         ], // City 2 slightly offset in other direction
                     );
 
-                    console.log("Created test pairings");
+                    console.log(`Created test pairings for ${city1.name}-${city2.name}`);
 
                     // Refresh pairings
                     await fetchPairings();
                 } else {
-                    console.log(`Found ${data.length} existing pairings`);
+                    console.log(`Found ${pairingsForCurrentCities} existing pairings for ${city1.name}-${city2.name}`);
                 }
             }
         } catch (error) {
@@ -277,19 +321,23 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
                 throw new Error("API returned non-array data");
             }
 
-            console.log(`Fetched ${data.length} pairings`);
+            console.log(`Fetched ${data.length} total pairings`);
 
             // Validate pairings and filter out invalid ones
             const validPairings = data.filter((pairing) => {
                 const isValid = isValidPairingRecord(pairing, cityKeys);
                 if (!isValid) {
-                    console.warn("Found invalid pairing:", pairing);
+                    // Only log as warning if it has our city keys but invalid format
+                    if (pairing?.pairing && 
+                        (pairing.pairing[city1Key] || pairing.pairing[city2Key])) {
+                        console.warn(`Found invalid pairing with our city keys:`, pairing);
+                    }
                 }
                 return isValid;
             });
 
             console.log(
-                `${validPairings.length} valid pairings after filtering`,
+                `${validPairings.length} valid pairings for ${city1.name}-${city2.name} after filtering`,
             );
 
             // Update state
@@ -299,7 +347,7 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
             if (validPairings.length > 0) {
                 console.log("Sample valid pairing:", validPairings[0]);
             } else if (data.length > 0) {
-                console.log("Sample invalid pairing:", data[0]);
+                console.log("No valid pairings found for the current city pair");
             }
         } catch (error: unknown) {
             console.error("Error fetching pairings:", error);
@@ -316,16 +364,16 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
     // Create test pairings on component mount if none exist
     useEffect(() => {
         createTestPairings();
-    }, []);
+    }, [citiesKey]); // Re-run when cities change
 
     // Fetch pairings data with an interval
     useEffect(() => {
-        fetchPairings();
+        // Initial fetch is done by the first useEffect
 
         // Fetch every 10 seconds
         const intervalId = setInterval(fetchPairings, 10000);
         return () => clearInterval(intervalId);
-    }, []);
+    }, [citiesKey]); // Re-create interval when cities change
 
     return (
         <>
@@ -389,13 +437,13 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
 
             {!isLoading.value && pairings.value.length === 0 && (
                 <div class="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded-md text-center">
-                    No pairings available yet. Create some!
+                    No pairings available yet for {city1.name}-{city2.name}. Create some!
                 </div>
             )}
 
             {!isLoading.value && pairings.value.length > 0 && (
                 <div class="mt-4 p-2 bg-green-50 border border-green-200 rounded-md text-center">
-                    {pairings.value.length} pairings loaded and available
+                    {pairings.value.length} pairings loaded for {city1.name}-{city2.name}
                     {lastFetch && (
                         <span class="text-xs block text-gray-500">
                             Last updated: {lastFetch.toLocaleTimeString()}
