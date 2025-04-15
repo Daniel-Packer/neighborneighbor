@@ -11,8 +11,10 @@ import * as $pairings_index from "./routes/pairings/index.tsx";
 import * as $CityMapWrapper from "./islands/CityMapWrapper.tsx";
 import * as $CityMaps from "./islands/CityMaps.tsx";
 import * as $CitySelector from "./islands/CitySelector.tsx";
+import * as $DeleteButton from "./islands/DeleteButton.tsx";
 import * as $Map from "./islands/Map.tsx";
 import * as $PairingControls from "./islands/PairingControls.tsx";
+import * as $PairingList from "./islands/PairingList.tsx";
 import type { Manifest } from "$fresh/server.ts";
 
 const manifest = {
@@ -28,8 +30,10 @@ const manifest = {
     "./islands/CityMapWrapper.tsx": $CityMapWrapper,
     "./islands/CityMaps.tsx": $CityMaps,
     "./islands/CitySelector.tsx": $CitySelector,
+    "./islands/DeleteButton.tsx": $DeleteButton,
     "./islands/Map.tsx": $Map,
     "./islands/PairingControls.tsx": $PairingControls,
+    "./islands/PairingList.tsx": $PairingList,
   },
   baseUrl: import.meta.url,
 } satisfies Manifest;

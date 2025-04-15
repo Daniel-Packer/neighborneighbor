@@ -1,5 +1,5 @@
 import { Handlers } from "$fresh/server.ts";
-import { createPairing, getAllPairings } from "../../utils/kv.ts";
+import { createPairing, getAllPairings, deletePairing } from "../../utils/kv.ts";
 
 export const handler: Handlers = {
   // GET endpoint to retrieve all pairings
@@ -65,6 +65,34 @@ export const handler: Handlers = {
     } catch (error) {
       console.error("Error creating pairing:", error);
       return new Response(JSON.stringify({ error: "Failed to create pairing" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  },
+  
+  // DELETE endpoint to remove a pairing
+  async DELETE(req) {
+    try {
+      const url = new URL(req.url);
+      const id = url.searchParams.get('id');
+      
+      if (!id) {
+        return new Response(JSON.stringify({ error: "Missing pairing ID" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      
+      await deletePairing(id);
+      
+      return new Response(JSON.stringify({ success: true, id }), {
+        headers: { "Content-Type": "application/json" },
+      });
+      
+    } catch (error) {
+      console.error("Error deleting pairing:", error);
+      return new Response(JSON.stringify({ error: "Failed to delete pairing" }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
       });
