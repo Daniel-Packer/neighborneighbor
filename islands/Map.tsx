@@ -257,48 +257,86 @@ export default function Map({
     if (typeof window === "undefined" || !matchedPoints) return;
     
     console.log(`Updating matched points for ${id}:`, matchedPoints.value);
+    
+    // Store a reference to the current map instance to prevent stale closures
+    const currentMapInstance = mapInstanceRef.current;
+    if (!currentMapInstance) {
+      console.log(`Map instance not available yet for ${id}`);
+      return;
+    }
 
-    import("leaflet").then((L) => {
-      // Need to wait for map to initialize
-      if (!mapInstanceRef.current) {
-        console.log(`Map instance not available yet for ${id}`);
-        return;
+    // First clear existing matched markers
+    matchedMarkersRef.current.forEach(marker => {
+      try {
+        marker.remove();
+      } catch (err) {
+        console.error("Error removing marker:", err);
       }
-      
-      // Clear existing matched markers
-      matchedMarkersRef.current.forEach(marker => marker.remove());
-      matchedMarkersRef.current = [];
-      
-      // Add new markers for each matched point
-      const points = matchedPoints.value;
-      if (points && points.length > 0) {
-        console.log(`Adding ${points.length} matched points to ${id}`);
-        points.forEach(point => {
-          try {
-            const marker = L.default.marker(point, {
-              icon: L.default.divIcon({
-                className: 'matched-marker',
-                html: '<div class="marker-dot"></div>',
-                iconSize: [10, 10]
-              })
-            }).addTo(mapInstanceRef.current!);
-            
-            matchedMarkersRef.current.push(marker);
-          } catch (error) {
-            console.error(`Error adding marker at ${point}:`, error);
+    });
+    matchedMarkersRef.current = [];
+
+    // Don't do anything else if there are no points to display
+    const points = matchedPoints.value;
+    if (!points || points.length === 0) {
+      console.log(`No matched points for ${id}`);
+      return;
+    }
+    
+    console.log(`Adding ${points.length} matched points to ${id}:`, points);
+
+    // Import Leaflet and add markers
+    import("leaflet").then((leaflet) => {
+      const L = leaflet.default;
+
+      // Create markers for each point with better error handling
+      points.forEach((point, index) => {
+        try {
+          console.log(`Creating marker at ${point[0]}, ${point[1]} for ${id}`);
+          
+          // Check if the point is valid
+          if (!Array.isArray(point) || point.length !== 2 || 
+              typeof point[0] !== 'number' || typeof point[1] !== 'number') {
+            console.error(`Invalid point at index ${index}:`, point);
+            return; // Skip this point
           }
-        });
-      }
+          
+          // Create a more visible marker
+          const marker = L.marker(point, {
+            icon: L.divIcon({
+              className: 'matched-marker',
+              html: `<div class="marker-dot" style="
+                width: 10px;
+                height: 10px;
+                background-color: #FF8800;
+                border-radius: 50%;
+                border: 2px solid white;
+                box-shadow: 0 0 4px rgba(0,0,0,0.5);
+              "></div>`,
+              iconSize: [10, 10]
+            })
+          }).addTo(currentMapInstance);
+          
+          matchedMarkersRef.current.push(marker);
+        } catch (error) {
+          console.error(`Error adding marker for ${id} at ${point}:`, error);
+        }
+      });
     }).catch(error => {
-      console.error("Failed to load Leaflet for matched points:", error);
+      console.error(`Failed to load Leaflet for matched points on ${id}:`, error);
     });
     
     return () => {
       // Clean up matched markers when component unmounts or points change
-      matchedMarkersRef.current.forEach(marker => marker.remove());
+      matchedMarkersRef.current.forEach(marker => {
+        try {
+          marker.remove();
+        } catch (err) {
+          console.error("Error cleaning up marker:", err);
+        }
+      });
       matchedMarkersRef.current = [];
     };
-  }, [id, matchedPoints?.value]); // Dependency on matchedPoints value
+  }, [matchedPoints?.value]); // Only depend on matchedPoints value changes
 
   return (
     <div class="map-container">
