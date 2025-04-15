@@ -1,15 +1,15 @@
 // Generic city map component that handles any two cities
-import { useComputed, useSignal } from "@preact/signals";
+import { Signal, useComputed, useSignal } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
 import Map from "./Map.tsx";
 import PairingControls from "./PairingControls.tsx";
-import type { LocationPoint } from "../src/interfaces.ts";
-import { isLocationPoint } from "../src/validation.ts";
-import {
-    CityLocation,
-    LocationPairing,
-    PairingRecord,
+import type {
+    CityMapsProps,
+    LocationPoint,
+    MatchedPointsParams,
 } from "../src/interfaces.ts";
+import { isLocationPoint } from "../src/validation.ts";
+import { LocationPairing, PairingRecord } from "../src/interfaces.ts";
 
 // Helper to validate a pairing object with dynamic city keys
 function isValidPairingRecord(
@@ -55,9 +55,68 @@ function isValidPairingRecord(
     return true;
 }
 
-interface CityMapsProps {
-    cities: [CityLocation, CityLocation];
-    cityKeys: [string, string]; // API keys for the cities (e.g., ["seattle", "portland"])
+// Helper function to find matched points between cities
+function useMatchedCityPoints({
+    hoverPoint,
+    pairings,
+    sourceCity,
+    targetCity,
+    sourceCityName,
+    targetCityName,
+}: MatchedPointsParams): Signal<[number, number][]> {
+    return useComputed(() => {
+        if (!hoverPoint.value || pairings.value.length === 0) {
+            return [];
+        }
+
+        // Find target city points that are paired with source city points near the hover
+        const [hlat, hlng] = hoverPoint.value;
+        console.log(
+            `Finding ${targetCityName} points near ${sourceCityName} hover: ${
+                hlat.toFixed(5)
+            }, ${hlng.toFixed(5)}`,
+        );
+
+        const matchedPoints = pairings.value
+            .filter((pairing) => {
+                const sourcePoint = pairing[sourceCity];
+                if (!isLocationPoint(sourcePoint)) return false;
+
+                const [plat, plng] = sourcePoint.coordinates;
+
+                // Calculate distance - using simple Euclidean distance
+                const distance = Math.sqrt(
+                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
+                );
+
+                // Match if within a small radius
+                const isNearby = distance < 0.01; // About 5km
+                if (isNearby) {
+                    console.log(
+                        `Found nearby ${sourceCityName} point at ${
+                            plat.toFixed(5)
+                        }, ${plng.toFixed(5)}, distance: ${
+                            distance.toFixed(5)
+                        }`,
+                    );
+                }
+                return isNearby;
+            })
+            .map((pairing) => {
+                const targetPoint = pairing[targetCity];
+                return isLocationPoint(targetPoint)
+                    ? targetPoint.coordinates
+                    : null;
+            })
+            .filter((coordinates): coordinates is [number, number] =>
+                coordinates !== null
+            );
+
+        console.log(
+            `Found ${matchedPoints.length} matching ${targetCityName} points`,
+        );
+        return matchedPoints;
+    });
 }
 
 export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
@@ -74,114 +133,23 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
     const [error, setError] = useState<string | null>(null);
     const [lastFetch, setLastFetch] = useState<Date | null>(null);
 
-    // Function to calculate matched points for city1 from hovering on city2
-    const city1MatchedPoints = useComputed(() => {
-        if (!city2HoverPoint.value || pairings.value.length === 0) {
-            return [];
-        }
-
-        // Find city1 points that are paired with city2 points near the hover
-        const [hlat, hlng] = city2HoverPoint.value;
-        console.log(
-            `Finding ${city1.name} points near ${city2.name} hover: ${
-                hlat.toFixed(5)
-            }, ${hlng.toFixed(5)}`,
-        );
-
-        const matchedPoints = pairings.value
-            .filter((pairing) => {
-                const city2Point = pairing[city2Key];
-                if (!isLocationPoint(city2Point)) return false;
-
-                const [plat, plng] = city2Point.coordinates;
-
-                // Calculate distance - using simple Euclidean distance
-                const distance = Math.sqrt(
-                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
-                );
-
-                // Match if within a small radius
-                const isNearby = distance < 0.05; // About 5km
-                if (isNearby) {
-                    console.log(
-                        `Found nearby ${city2.name} point at ${
-                            plat.toFixed(5)
-                        }, ${plng.toFixed(5)}, distance: ${
-                            distance.toFixed(5)
-                        }`,
-                    );
-                }
-                return isNearby;
-            })
-            .map((pairing) => {
-                const city1Point = pairing[city1Key];
-                return isLocationPoint(city1Point)
-                    ? city1Point.coordinates
-                    : null;
-            })
-            .filter((coordinates): coordinates is [number, number] =>
-                coordinates !== null
-            );
-
-        console.log(
-            `Found ${matchedPoints.length} matching ${city1.name} points`,
-        );
-        return matchedPoints;
+    // Using the abstracted helper function for both city matches
+    const city1MatchedPoints = useMatchedCityPoints({
+        hoverPoint: city2HoverPoint,
+        pairings,
+        sourceCity: city2Key,
+        targetCity: city1Key,
+        sourceCityName: city2.name,
+        targetCityName: city1.name,
     });
 
-    // Function to calculate matched points for city2 from hovering on city1
-    const city2MatchedPoints = useComputed(() => {
-        if (!city1HoverPoint.value || pairings.value.length === 0) {
-            return [];
-        }
-
-        // Find city2 points that are paired with city1 points near the hover
-        const [hlat, hlng] = city1HoverPoint.value;
-        console.log(
-            `Finding ${city2.name} points near ${city1.name} hover: ${
-                hlat.toFixed(5)
-            }, ${hlng.toFixed(5)}`,
-        );
-
-        const matchedPoints = pairings.value
-            .filter((pairing) => {
-                const city1Point = pairing[city1Key];
-                if (!isLocationPoint(city1Point)) return false;
-
-                const [plat, plng] = city1Point.coordinates;
-
-                // Calculate distance
-                const distance = Math.sqrt(
-                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
-                );
-
-                // Match if within a small radius
-                const isNearby = distance < 0.05; // About 5km
-                if (isNearby) {
-                    console.log(
-                        `Found nearby ${city1.name} point at ${
-                            plat.toFixed(5)
-                        }, ${plng.toFixed(5)}, distance: ${
-                            distance.toFixed(5)
-                        }`,
-                    );
-                }
-                return isNearby;
-            })
-            .map((pairing) => {
-                const city2Point = pairing[city2Key];
-                return isLocationPoint(city2Point)
-                    ? city2Point.coordinates
-                    : null;
-            })
-            .filter((coordinates): coordinates is [number, number] =>
-                coordinates !== null
-            );
-
-        console.log(
-            `Found ${matchedPoints.length} matching ${city2.name} points`,
-        );
-        return matchedPoints;
+    const city2MatchedPoints = useMatchedCityPoints({
+        hoverPoint: city1HoverPoint,
+        pairings,
+        sourceCity: city1Key,
+        targetCity: city2Key,
+        sourceCityName: city1.name,
+        targetCityName: city2.name,
     });
 
     // Functions to handle point selection

@@ -1,3 +1,5 @@
+import { Signal } from "@preact/signals";
+
 // Define types for our KV data
 export interface LocationPoint {
   city: string;
@@ -19,4 +21,19 @@ export interface CityLocation {
 export interface PairingRecord {
   id: string;
   pairing: LocationPairing;
+}
+
+
+export interface CityMapsProps {
+    cities: [CityLocation, CityLocation];
+    cityKeys: [string, string]; // API keys for the cities (e.g., ["seattle", "portland"])
+}
+
+export interface MatchedPointsParams {
+    hoverPoint: Signal<[number, number] | null>;
+    pairings: Signal<LocationPairing[]>;
+    sourceCity: string;
+    targetCity: string;
+    sourceCityName: string;
+    targetCityName: string;
 }
