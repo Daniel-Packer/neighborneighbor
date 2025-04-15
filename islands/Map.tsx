@@ -300,27 +300,40 @@ export default function Map({
             return; // Skip this point
           }
           
-          // Create a more visible marker
-          const marker = L.marker(point, {
+          // Create a much more visible marker
+          const marker = L.marker([point[0], point[1]], {
             icon: L.divIcon({
               className: 'matched-marker',
-              html: `<div class="marker-dot" style="
-                width: 10px;
-                height: 10px;
-                background-color: #FF8800;
+              html: `<div style="
+                width: 16px;
+                height: 16px;
+                background-color: #FF5500;
                 border-radius: 50%;
-                border: 2px solid white;
-                box-shadow: 0 0 4px rgba(0,0,0,0.5);
+                border: 3px solid white;
+                box-shadow: 0 0 6px rgba(0,0,0,0.8);
+                opacity: 1;
               "></div>`,
-              iconSize: [10, 10]
+              iconSize: [16, 16],
+              iconAnchor: [8, 8]
             })
-          }).addTo(currentMapInstance);
+          });
           
+          // Add marker to map
+          marker.addTo(currentMapInstance);
+          
+          // Add a popup to show coordinates
+          marker.bindPopup(`Paired point: ${point[0].toFixed(5)}, ${point[1].toFixed(5)}`);
+          
+          // Store the marker reference
           matchedMarkersRef.current.push(marker);
+          
+          console.log(`Marker added for ${id} at ${point[0]}, ${point[1]}`);
+          
         } catch (error) {
           console.error(`Error adding marker for ${id} at ${point}:`, error);
         }
       });
+      
     }).catch(error => {
       console.error(`Failed to load Leaflet for matched points on ${id}:`, error);
     });
@@ -347,7 +360,7 @@ export default function Map({
         class="h-80 w-full rounded-lg shadow-md relative"
       >
         {isHovering && (
-          <div class="absolute top-0 right-0 bg-blue-500 text-white text-xs px-2 py-1 rounded-bl-md">
+          <div class="absolute top-0 right-0 bg-blue-500 text-white text-xs px-2 py-1 rounded-bl-md z-[9000]">
             Hovering
           </div>
         )}

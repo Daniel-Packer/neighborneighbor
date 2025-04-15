@@ -1,5 +1,5 @@
 import { Handlers } from "$fresh/server.ts";
-import { createPairing, getAllPairings, LocationPairing } from "../../utils/kv.ts";
+import { createPairing, getAllPairings } from "../../utils/kv.ts";
 
 export const handler: Handlers = {
   // GET endpoint to retrieve all pairings
@@ -21,26 +21,47 @@ export const handler: Handlers = {
   // POST endpoint to create a new pairing
   async POST(req) {
     try {
-      const body: LocationPairing = await req.json();
+      const body = await req.json();
       
-      // Validate the request body
-      if (!body.seattle || !body.portland || 
-          !body.seattle.coordinates || !body.portland.coordinates ||
-          !Array.isArray(body.seattle.coordinates) || !Array.isArray(body.portland.coordinates) ||
-          body.seattle.coordinates.length !== 2 || body.portland.coordinates.length !== 2) {
+      // Validate the request body - now checking dynamically for any city keys
+      if (!body || typeof body !== "object") {
         return new Response(JSON.stringify({ error: "Invalid request body" }), {
           status: 400,
           headers: { "Content-Type": "application/json" },
         });
       }
 
-      // Create the pairing in KV store
+      // Ensure createdAt exists
+      if (!body.createdAt) {
+        body.createdAt = new Date().toISOString();
+      }
+      
+      // Check for at least 2 city entries with valid coordinates
+      const cityEntries = Object.entries(body).filter(([key, value]) => 
+        key !== "createdAt" && 
+        value && 
+        typeof value === "object" && 
+        "coordinates" in value &&
+        Array.isArray(value.coordinates) &&
+        value.coordinates.length === 2
+      );
+      
+      if (cityEntries.length < 2) {
+        return new Response(JSON.stringify({ 
+          error: "At least two cities with valid coordinates are required" 
+        }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      
+      // Create the pairing
       const result = await createPairing(body);
       
       return new Response(JSON.stringify(result), {
-        status: 201,
         headers: { "Content-Type": "application/json" },
       });
+      
     } catch (error) {
       console.error("Error creating pairing:", error);
       return new Response(JSON.stringify({ error: "Failed to create pairing" }), {

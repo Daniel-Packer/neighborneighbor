@@ -1,28 +1,31 @@
-// New island component that contains both maps
+// Generic city map component that handles any two cities
 import { useSignal, useComputed } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
 import Map from "./Map.tsx";
 import PairingControls from "./PairingControls.tsx";
+import type { LocationPoint } from "../src/interfaces.ts";
+import { isLocationPoint } from "../src/validation.ts";
+import { LocationPairing } from "../src/interfaces.ts";
 
-// Define types for our pairings data as returned by the API
-interface LocationPoint {
-  city: string;
-  coordinates: [number, number];
+// Define types for our pairings data
+interface CityLocation {
+  name: string;
+  coordinates: [number, number]; // [latitude, longitude]
+  zoom: number;
 }
 
-interface LocationPairing {
-  seattle: LocationPoint;
-  portland: LocationPoint;
-  createdAt: string;
-}
+// Modified interface to avoid type conflict with createdAt property
+// interface LocationPairing extends Record<string, LocationPoint | string> {
+//   [cityKey: string]: LocationPoint | string;
+// }
 
 interface PairingRecord {
   id: string;
   pairing: LocationPairing;
 }
 
-// Helper to validate a pairing object
-function isValidPairingRecord(record: unknown): record is PairingRecord {
+// Helper to validate a pairing object with dynamic city keys
+function isValidPairingRecord(record: unknown, cityKeys: string[]): record is PairingRecord {
   if (typeof record !== 'object' || record === null) {
     console.log('Invalid record: not an object');
     return false;
@@ -40,142 +43,148 @@ function isValidPairingRecord(record: unknown): record is PairingRecord {
     return false;
   }
   
-  if (!('seattle' in pairing) || !('portland' in pairing)) {
-    console.log('Invalid record: pairing missing seattle or portland');
-    return false;
-  }
-  
-  const { seattle, portland } = pairing;
-  
-  if (typeof seattle !== 'object' || seattle === null || 
-      typeof portland !== 'object' || portland === null) {
-    console.log('Invalid record: seattle or portland not objects');
-    return false;
-  }
-  
-  if (!('coordinates' in seattle) || !Array.isArray(seattle.coordinates) || 
-      seattle.coordinates.length !== 2 ||
-      typeof seattle.coordinates[0] !== 'number' || 
-      typeof seattle.coordinates[1] !== 'number') {
-    console.log('Invalid record: invalid seattle coordinates');
-    return false;
-  }
-  
-  if (!('coordinates' in portland) || !Array.isArray(portland.coordinates) || 
-      portland.coordinates.length !== 2 ||
-      typeof portland.coordinates[0] !== 'number' || 
-      typeof portland.coordinates[1] !== 'number') {
-    console.log('Invalid record: invalid portland coordinates');
-    return false;
+  // Check that all required city keys exist
+  for (const cityKey of cityKeys) {
+    if (!(cityKey in pairing)) {
+      console.log(`Invalid record: pairing missing city key "${cityKey}"`);
+      return false;
+    }
+    
+    const cityPoint = pairing[cityKey];
+    
+    if (!isLocationPoint(cityPoint)) {
+      console.log(`Invalid record: ${cityKey} is not a valid LocationPoint`);
+      return false;
+    }
   }
   
   return true;
 }
 
-export default function CityMaps() {
-  const seattlePoint = useSignal<[number, number] | null>(null);
-  const portlandPoint = useSignal<[number, number] | null>(null);
-  const seattleHoverPoint = useSignal<[number, number] | null>(null);
-  const portlandHoverPoint = useSignal<[number, number] | null>(null);
+interface CityMapsProps {
+  cities: [CityLocation, CityLocation];
+  cityKeys: [string, string]; // API keys for the cities (e.g., ["seattle", "portland"])
+}
+
+export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
+  const [city1, city2] = cities;
+  const [city1Key, city2Key] = cityKeys;
+  
+  const city1Point = useSignal<[number, number] | null>(null);
+  const city2Point = useSignal<[number, number] | null>(null);
+  const city1HoverPoint = useSignal<[number, number] | null>(null);
+  const city2HoverPoint = useSignal<[number, number] | null>(null);
   const pairings = useSignal<LocationPairing[]>([]);
   const isLoading = useSignal<boolean>(false);
   const [debug, setDebug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
 
-  // Function to calculate matched points
-  const seattleMatchedPoints = useComputed(() => {
-    if (!portlandHoverPoint.value || pairings.value.length === 0) {
+  // Function to calculate matched points for city1 from hovering on city2
+  const city1MatchedPoints = useComputed(() => {
+    if (!city2HoverPoint.value || pairings.value.length === 0) {
       return [];
     }
     
-    // Find Seattle points that are paired with Portland points near the hover
-    const [hlat, hlng] = portlandHoverPoint.value;
-    console.log(`Finding Seattle points near Portland hover: ${hlat.toFixed(5)}, ${hlng.toFixed(5)}`);
-    console.log(`Total pairings available: ${pairings.value.length}`);
+    // Find city1 points that are paired with city2 points near the hover
+    const [hlat, hlng] = city2HoverPoint.value;
+    console.log(`Finding ${city1.name} points near ${city2.name} hover: ${hlat.toFixed(5)}, ${hlng.toFixed(5)}`);
     
     const matchedPoints = pairings.value
       .filter(pairing => {
-        // We know all pairings are valid because we filtered them when loading
-        const [plat, plng] = pairing.portland.coordinates;
+        const city2Point = pairing[city2Key];
+        if (!isLocationPoint(city2Point)) return false;
         
-        // Calculate distance - using simple Euclidean distance for demo
-        // In production you might want a more sophisticated distance calculation
+        const [plat, plng] = city2Point.coordinates;
+        
+        // Calculate distance - using simple Euclidean distance
         const distance = Math.sqrt(
           Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2)
         );
         
-        // Match if within a small radius (adjust as needed)
+        // Match if within a small radius
         const isNearby = distance < 0.05; // About 5km
         if (isNearby) {
-          console.log(`Found nearby Portland point at ${plat.toFixed(5)}, ${plng.toFixed(5)}, distance: ${distance.toFixed(5)}`);
+          console.log(`Found nearby ${city2.name} point at ${plat.toFixed(5)}, ${plng.toFixed(5)}, distance: ${distance.toFixed(5)}`);
         }
         return isNearby;
       })
-      .map(pairing => pairing.seattle.coordinates);
+      .map(pairing => {
+        const city1Point = pairing[city1Key];
+        return isLocationPoint(city1Point) ? city1Point.coordinates : null;
+      })
+      .filter((coordinates): coordinates is [number, number] => 
+        coordinates !== null);
     
-    console.log(`Found ${matchedPoints.length} matching Seattle points`);
+    console.log(`Found ${matchedPoints.length} matching ${city1.name} points`);
     return matchedPoints;
   });
 
-  // Compute Portland matched points based on Seattle hover
-  const portlandMatchedPoints = useComputed(() => {
-    if (!seattleHoverPoint.value || pairings.value.length === 0) {
+  // Function to calculate matched points for city2 from hovering on city1
+  const city2MatchedPoints = useComputed(() => {
+    if (!city1HoverPoint.value || pairings.value.length === 0) {
       return [];
     }
     
-    // Find Portland points that are paired with Seattle points near the hover
-    const [hlat, hlng] = seattleHoverPoint.value;
-    console.log(`Finding Portland points near Seattle hover: ${hlat.toFixed(5)}, ${hlng.toFixed(5)}`);
-    console.log(`Total pairings available: ${pairings.value.length}`);
+    // Find city2 points that are paired with city1 points near the hover
+    const [hlat, hlng] = city1HoverPoint.value;
+    console.log(`Finding ${city2.name} points near ${city1.name} hover: ${hlat.toFixed(5)}, ${hlng.toFixed(5)}`);
     
     const matchedPoints = pairings.value
       .filter(pairing => {
-        const [slat, slng] = pairing.seattle.coordinates;
+        const city1Point = pairing[city1Key];
+        if (!isLocationPoint(city1Point)) return false;
+        
+        const [plat, plng] = city1Point.coordinates;
         
         // Calculate distance
         const distance = Math.sqrt(
-          Math.pow(slat - hlat, 2) + Math.pow(slng - hlng, 2)
+          Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2)
         );
         
-        // Match if within a small radius (adjust as needed)
+        // Match if within a small radius
         const isNearby = distance < 0.05; // About 5km
         if (isNearby) {
-          console.log(`Found nearby Seattle point at ${slat.toFixed(5)}, ${slng.toFixed(5)}, distance: ${distance.toFixed(5)}`);
+          console.log(`Found nearby ${city1.name} point at ${plat.toFixed(5)}, ${plng.toFixed(5)}, distance: ${distance.toFixed(5)}`);
         }
         return isNearby;
       })
-      .map(pairing => pairing.portland.coordinates);
+      .map(pairing => {
+        const city2Point = pairing[city2Key];
+        return isLocationPoint(city2Point) ? city2Point.coordinates : null;
+      })
+      .filter((coordinates): coordinates is [number, number] => 
+        coordinates !== null);
     
-    console.log(`Found ${matchedPoints.length} matching Portland points`);
+    console.log(`Found ${matchedPoints.length} matching ${city2.name} points`);
     return matchedPoints;
   });
 
   // Functions to handle point selection
-  const handleSeattleSelect = (point: [number, number]) => {
-    seattlePoint.value = point;
-    console.log(`Seattle point selected: ${point[0]}, ${point[1]}`);
+  const handleCity1Select = (point: [number, number]) => {
+    city1Point.value = point;
+    console.log(`${city1.name} point selected: ${point[0]}, ${point[1]}`);
   };
 
-  const handlePortlandSelect = (point: [number, number]) => {
-    portlandPoint.value = point;
-    console.log(`Portland point selected: ${point[0]}, ${point[1]}`);
+  const handleCity2Select = (point: [number, number]) => {
+    city2Point.value = point;
+    console.log(`${city2.name} point selected: ${point[0]}, ${point[1]}`);
   };
 
   // Functions to handle hover
-  const handleSeattleHover = (point: [number, number] | null) => {
-    seattleHoverPoint.value = point;
+  const handleCity1Hover = (point: [number, number] | null) => {
+    city1HoverPoint.value = point;
     if (point) {
-      setDebug(`Seattle hover: ${point[0].toFixed(5)}, ${point[1].toFixed(5)}`);
+      setDebug(`${city1.name} hover: ${point[0].toFixed(5)}, ${point[1].toFixed(5)}`);
     } else {
       setDebug(null);
     }
   };
 
-  const handlePortlandHover = (point: [number, number] | null) => {
-    portlandHoverPoint.value = point;
+  const handleCity2Hover = (point: [number, number] | null) => {
+    city2HoverPoint.value = point;
     if (point) {
-      setDebug(`Portland hover: ${point[0].toFixed(5)}, ${point[1].toFixed(5)}`);
+      setDebug(`${city2.name} hover: ${point[0].toFixed(5)}, ${point[1].toFixed(5)}`);
     } else {
       setDebug(null);
     }
@@ -192,18 +201,19 @@ export default function CityMaps() {
           
           // Create test pairings
           await addTestPairing(
-            [47.6062, -122.3321], // Seattle center
-            [45.5152, -122.6784]  // Portland center
+            city1.coordinates, // City 1 center
+            city2.coordinates  // City 2 center
+          );
+          
+          // Create a few more test pairings nearby
+          await addTestPairing(
+            [city1.coordinates[0] + 0.01, city1.coordinates[1] + 0.01], // City 1 slightly offset
+            [city2.coordinates[0] + 0.01, city2.coordinates[1] + 0.01]  // City 2 slightly offset
           );
           
           await addTestPairing(
-            [47.6162, -122.3421], // Seattle slightly north
-            [45.5252, -122.6884]  // Portland slightly north
-          );
-          
-          await addTestPairing(
-            [47.5962, -122.3221], // Seattle slightly south
-            [45.5052, -122.6684]  // Portland slightly south
+            [city1.coordinates[0] - 0.01, city1.coordinates[1] - 0.01], // City 1 slightly offset in other direction
+            [city2.coordinates[0] - 0.01, city2.coordinates[1] - 0.01]  // City 2 slightly offset in other direction
           );
           
           console.log("Created test pairings");
@@ -221,15 +231,17 @@ export default function CityMaps() {
   };
   
   // Helper to add a test pairing
-  const addTestPairing = async (seattleCoords: [number, number], portlandCoords: [number, number]) => {
+  const addTestPairing = async (city1Coords: [number, number], city2Coords: [number, number]) => {
+    const pairingData: Record<string, LocationPoint | string> = {
+      [city1Key]: { city: city1.name, coordinates: city1Coords },
+      [city2Key]: { city: city2.name, coordinates: city2Coords },
+      createdAt: new Date().toISOString(),
+    };
+    
     await fetch("/api/pairings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        seattle: { city: "Seattle, WA", coordinates: seattleCoords },
-        portland: { city: "Portland, OR", coordinates: portlandCoords },
-        createdAt: new Date().toISOString(),
-      }),
+      body: JSON.stringify(pairingData),
     });
   };
 
@@ -254,7 +266,7 @@ export default function CityMaps() {
       
       // Validate pairings and filter out invalid ones
       const validPairings = data.filter(pairing => {
-        const isValid = isValidPairingRecord(pairing);
+        const isValid = isValidPairingRecord(pairing, cityKeys);
         if (!isValid) {
           console.warn("Found invalid pairing:", pairing);
         }
@@ -301,36 +313,36 @@ export default function CityMaps() {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="bg-white p-4 rounded-lg shadow">
           <Map 
-            id="map-seattle"
-            center={[47.6062, -122.3321]}
-            zoom={12}
-            title="Seattle, WA"
-            selectedPoint={seattlePoint}
-            onPointSelect={handleSeattleSelect}
-            onPointHover={handleSeattleHover}
-            matchedPoints={portlandMatchedPoints}
+            id={`map-${city1Key}`}
+            center={city1.coordinates}
+            zoom={city1.zoom}
+            title={city1.name}
+            selectedPoint={city1Point}
+            onPointSelect={handleCity1Select}
+            onPointHover={handleCity1Hover}
+            matchedPoints={city2MatchedPoints}
           />
-          {portlandMatchedPoints.value.length > 0 && (
+          {city2MatchedPoints.value.length > 0 && (
             <div class="mt-1 p-2 bg-amber-50 border border-amber-200 rounded-md">
-              Found {portlandMatchedPoints.value.length} matching points in Portland
+              Found {city2MatchedPoints.value.length} matching points in {city2.name}
             </div>
           )}
         </div>
         
         <div class="bg-white p-4 rounded-lg shadow">
           <Map 
-            id="map-portland"
-            center={[45.5152, -122.6784]}
-            zoom={12} 
-            title="Portland, OR"
-            selectedPoint={portlandPoint}
-            onPointSelect={handlePortlandSelect}
-            onPointHover={handlePortlandHover}
-            matchedPoints={seattleMatchedPoints}
+            id={`map-${city2Key}`}
+            center={city2.coordinates}
+            zoom={city2.zoom}
+            title={city2.name}
+            selectedPoint={city2Point}
+            onPointSelect={handleCity2Select}
+            onPointHover={handleCity2Hover}
+            matchedPoints={city1MatchedPoints}
           />
-          {seattleMatchedPoints.value.length > 0 && (
+          {city1MatchedPoints.value.length > 0 && (
             <div class="mt-1 p-2 bg-amber-50 border border-amber-200 rounded-md">
-              Found {seattleMatchedPoints.value.length} matching points in Seattle
+              Found {city1MatchedPoints.value.length} matching points in {city1.name}
             </div>
           )}
         </div>
@@ -372,8 +384,16 @@ export default function CityMaps() {
       )}
 
       <PairingControls
-        seattlePoint={seattlePoint}
-        portlandPoint={portlandPoint}
+        city1={{
+          key: city1Key,
+          name: city1.name,
+          point: city1Point
+        }}
+        city2={{
+          key: city2Key, 
+          name: city2.name,
+          point: city2Point
+        }}
         onPairingCreated={() => {
           // Refresh pairings when a new one is created
           fetchPairings();

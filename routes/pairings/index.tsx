@@ -1,6 +1,8 @@
 import { Handlers, PageProps } from "$fresh/server.ts";
 import { Head } from "$fresh/runtime.ts";
-import { getAllPairings, LocationPairing } from "../../utils/kv.ts";
+import { getAllPairings } from "../../utils/kv.ts";
+import type { LocationPairing } from "../../src/interfaces.ts";
+import { isLocationPoint } from "../../src/validation.ts";
 
 interface PairingsData {
   pairings: Array<{
@@ -47,29 +49,43 @@ export default function PairingsPage({ data }: PageProps<PairingsData>) {
           </div>
         ) : (
           <div class="grid gap-4 md:grid-cols-2">
-            {pairings.map(({ id, pairing }) => (
-              <div key={id} class="bg-white p-4 rounded-lg shadow">
-                <h3 class="font-bold text-lg mb-2">Paired on {new Date(pairing.createdAt).toLocaleDateString()}</h3>
-                
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="border-r pr-4">
-                    <h4 class="font-semibold">{pairing.seattle.city}</h4>
-                    <p class="text-sm">
-                      Lat: {pairing.seattle.coordinates[0].toFixed(5)}<br />
-                      Lng: {pairing.seattle.coordinates[1].toFixed(5)}
-                    </p>
+            {pairings.map(({ id, pairing }) => {
+              // Get seattle and portland data, ensuring they are LocationPoint objects
+              const seattleData = pairing.seattle;
+              const portlandData = pairing.portland;
+              
+              if (!isLocationPoint(seattleData) || !isLocationPoint(portlandData)) {
+                return (
+                  <div key={id} class="bg-white p-4 rounded-lg shadow">
+                    <p>Invalid pairing data format</p>
                   </div>
+                );
+              }
+              
+              return (
+                <div key={id} class="bg-white p-4 rounded-lg shadow">
+                  <h3 class="font-bold text-lg mb-2">Paired on {new Date(pairing.createdAt).toLocaleDateString()}</h3>
                   
-                  <div>
-                    <h4 class="font-semibold">{pairing.portland.city}</h4>
-                    <p class="text-sm">
-                      Lat: {pairing.portland.coordinates[0].toFixed(5)}<br />
-                      Lng: {pairing.portland.coordinates[1].toFixed(5)}
-                    </p>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="border-r pr-4">
+                      <h4 class="font-semibold">{seattleData.city}</h4>
+                      <p class="text-sm">
+                        Lat: {seattleData.coordinates[0].toFixed(5)}<br />
+                        Lng: {seattleData.coordinates[1].toFixed(5)}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h4 class="font-semibold">{portlandData.city}</h4>
+                      <p class="text-sm">
+                        Lat: {portlandData.coordinates[0].toFixed(5)}<br />
+                        Lng: {portlandData.coordinates[1].toFixed(5)}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
