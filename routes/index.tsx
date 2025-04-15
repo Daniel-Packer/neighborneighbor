@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>City Maps Comparison</title>
+        <title>Neighbor Neighbor</title>
       </Head>
       <div class="p-4 mx-auto max-w-screen-xl">
         <div class="flex justify-between items-center mb-6">

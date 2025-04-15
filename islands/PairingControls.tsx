@@ -68,11 +68,6 @@ export default function PairingControls({ city1, city2, onPairingCreated }: Pair
 
   return (
     <div class="mt-6 flex flex-col items-center">
-      <div class="text-center mb-4">
-        <h3 class="text-lg font-semibold">Create a New Pairing</h3>
-        <p class="text-gray-600">Select points in both {city1.name} and {city2.name}</p>
-      </div>
-      
       <div class="flex flex-wrap justify-center gap-4 mb-4">
         <div class="px-4 py-2 bg-gray-100 rounded-lg">
           <span class="font-semibold">{city1.name}:</span> {city1.point.value ? 
