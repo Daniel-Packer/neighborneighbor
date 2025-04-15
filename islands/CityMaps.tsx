@@ -4,41 +4,72 @@ import { useEffect, useState } from "preact/hooks";
 import Map from "./Map.tsx";
 import PairingControls from "./PairingControls.tsx";
 
-// Define types for our pairings
+// Define types for our pairings data as returned by the API
 interface LocationPoint {
   city: string;
   coordinates: [number, number];
 }
 
 interface LocationPairing {
-  id?: string;
   seattle: LocationPoint;
   portland: LocationPoint;
   createdAt: string;
 }
 
+interface PairingRecord {
+  id: string;
+  pairing: LocationPairing;
+}
+
 // Helper to validate a pairing object
-function isValidPairing(pairing: unknown): pairing is LocationPairing {
-  return (
-    typeof pairing === 'object' &&
-    pairing !== null &&
-    'seattle' in pairing &&
-    'portland' in pairing &&
-    typeof pairing.seattle === 'object' && 
-    pairing.seattle !== null &&
-    'coordinates' in pairing.seattle &&
-    Array.isArray(pairing.seattle.coordinates) &&
-    pairing.seattle.coordinates.length === 2 &&
-    typeof pairing.seattle.coordinates[0] === 'number' &&
-    typeof pairing.seattle.coordinates[1] === 'number' &&
-    typeof pairing.portland === 'object' && 
-    pairing.portland !== null &&
-    'coordinates' in pairing.portland &&
-    Array.isArray(pairing.portland.coordinates) &&
-    pairing.portland.coordinates.length === 2 &&
-    typeof pairing.portland.coordinates[0] === 'number' &&
-    typeof pairing.portland.coordinates[1] === 'number'
-  );
+function isValidPairingRecord(record: unknown): record is PairingRecord {
+  if (typeof record !== 'object' || record === null) {
+    console.log('Invalid record: not an object');
+    return false;
+  }
+  
+  if (!('id' in record) || !('pairing' in record)) {
+    console.log('Invalid record: missing id or pairing property');
+    return false;
+  }
+  
+  const pairing = (record as PairingRecord).pairing;
+  
+  if (typeof pairing !== 'object' || pairing === null) {
+    console.log('Invalid record: pairing is not an object');
+    return false;
+  }
+  
+  if (!('seattle' in pairing) || !('portland' in pairing)) {
+    console.log('Invalid record: pairing missing seattle or portland');
+    return false;
+  }
+  
+  const { seattle, portland } = pairing;
+  
+  if (typeof seattle !== 'object' || seattle === null || 
+      typeof portland !== 'object' || portland === null) {
+    console.log('Invalid record: seattle or portland not objects');
+    return false;
+  }
+  
+  if (!('coordinates' in seattle) || !Array.isArray(seattle.coordinates) || 
+      seattle.coordinates.length !== 2 ||
+      typeof seattle.coordinates[0] !== 'number' || 
+      typeof seattle.coordinates[1] !== 'number') {
+    console.log('Invalid record: invalid seattle coordinates');
+    return false;
+  }
+  
+  if (!('coordinates' in portland) || !Array.isArray(portland.coordinates) || 
+      portland.coordinates.length !== 2 ||
+      typeof portland.coordinates[0] !== 'number' || 
+      typeof portland.coordinates[1] !== 'number') {
+    console.log('Invalid record: invalid portland coordinates');
+    return false;
+  }
+  
+  return true;
 }
 
 export default function CityMaps() {
@@ -223,7 +254,7 @@ export default function CityMaps() {
       
       // Validate pairings and filter out invalid ones
       const validPairings = data.filter(pairing => {
-        const isValid = isValidPairing(pairing);
+        const isValid = isValidPairingRecord(pairing);
         if (!isValid) {
           console.warn("Found invalid pairing:", pairing);
         }
@@ -233,7 +264,7 @@ export default function CityMaps() {
       console.log(`${validPairings.length} valid pairings after filtering`);
       
       // Update state
-      pairings.value = validPairings;
+      pairings.value = validPairings.map(record => record.pairing);
       setLastFetch(new Date());
       
       if (validPairings.length > 0) {
