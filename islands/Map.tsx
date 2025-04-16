@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Signal } from "@preact/signals";
+import { MatchedPoint } from "../src/interfaces.ts";
+
 // Don't import Leaflet directly at the module level
 // Instead we'll import it dynamically inside useEffect where we know window exists
 
@@ -55,7 +57,7 @@ interface MapProps {
   selectedPoint: Signal<[number, number] | null>;
   onPointSelect: (point: [number, number]) => void;
   onPointHover?: (point: [number, number] | null) => void;
-  matchedPoints?: Signal<Array<{ coordinates: [number, number], distance: number }>>;
+  matchedPoints?: Signal<MatchedPoint[]>;
 }
 
 export default function Map({ 
@@ -359,10 +361,9 @@ export default function Map({
               html: `<div style="
                 width: ${size}px;
                 height: ${size}px;
-                background-color: #FF5500;
+                background-color: ${point.color};
                 border-radius: 50%;
-                border: ${borderWidth}px solid white;
-                box-shadow: 0 0 6px rgba(0,0,0,0.8);
+                box-shadow: 0 0 6px rgba(0,0,0,0.4);
                 opacity: ${opacity};
                 position: absolute;
                 top: 50%;

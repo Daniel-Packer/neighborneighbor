@@ -36,4 +36,12 @@ export interface MatchedPointsParams {
     targetCity: string;
     sourceCityName: string;
     targetCityName: string;
+    showSourcePoints?: boolean; // Optional parameter to show source points
+}
+
+export interface MatchedPoint {
+    coordinates: [number, number];
+    distance: number;
+    color: string;
+    pairingId?: string;
 }
