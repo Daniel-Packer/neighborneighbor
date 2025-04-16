@@ -43,5 +43,5 @@ export interface MatchedPoint {
     coordinates: [number, number];
     distance: number;
     color: string;
-    pairingId?: string;
+    pairingId: string; // Make pairingId required instead of optional
 }

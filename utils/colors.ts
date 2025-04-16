@@ -18,18 +18,25 @@ export function getColorFromCoordinates(lat: number, lng: number): string {
   // of lat/lng values, but this gives a good distribution for most populated areas
   const normalizedLat = (lat + 90) / 180; // -90 to 90 -> 0 to 1
   const normalizedLng = (lng + 180) / 360; // -180 to 180 -> 0 to 1
+
+  const amplification = 500;
   
-  // Use normalized values to determine HSL color
-  // Hue: Use longitude for a full spectrum (0-360)
-  const hue = Math.floor(normalizedLng * 360);
+  // Amplify the coordinates to create higher frequency color changes
+  // This makes it easier to distinguish points that are close together
+  const amplifiedLng = (normalizedLng * amplification) % 1; // Cycles every 36 degrees of longitude instead of 360
+  const amplifiedLat = (normalizedLat * amplification) % 1; // Cycles every 18 degrees of latitude instead of 180
   
-  // Saturation: Higher near equator, lower near poles
-  // This creates more vibrant colors for most populated areas
-  const saturation = Math.floor(80 - Math.abs(normalizedLat - 0.5) * 60);
+  // Use amplified values to determine HSL color
+  // Hue: Use amplified longitude for a full spectrum (0-360)
+  const hue = Math.floor(amplifiedLng * 360);
+  
+  // Saturation: Use amplified latitude to vary saturation
+  // This creates more variation in colors for nearby points
+  const saturation = Math.floor(70 + amplifiedLat * 30); // 70-100% saturation range
   
   // Lightness: Use a mid-range lightness for good visibility
-  // Slightly lighter near poles, slightly darker near equator
-  const lightness = Math.floor(55 + Math.abs(normalizedLat - 0.5) * 20);
+  // Create variation based on a combination of lat/lng for more distinct colors
+  const lightness = Math.floor(50 + ((amplifiedLat + amplifiedLng) % 1) * 20); // 50-70% lightness
   
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
@@ -37,7 +44,7 @@ export function getColorFromCoordinates(lat: number, lng: number): string {
 /**
  * Generates a color based on a pairing of coordinates.
  * Uses the midpoint between the two locations to ensure the same pairing
- * always gets the same color.
+ * always gets the same color, but with higher frequency changes.
  * 
  * @param coords1 First coordinates [lat, lng]
  * @param coords2 Second coordinates [lat, lng]
@@ -48,7 +55,15 @@ export function getPairingColor(coords1: [number, number], coords2: [number, num
   const midLat = (coords1[0] + coords2[0]) / 2;
   const midLng = (coords1[1] + coords2[1]) / 2;
   
-  return getColorFromCoordinates(midLat, midLng);
+  // Also incorporate the distance between points to add more variation
+  const latDiff = Math.abs(coords1[0] - coords2[0]);
+  const lngDiff = Math.abs(coords1[1] - coords2[1]);
+  
+  // Add a slight offset based on the distance to create even more distinct colors
+  const offsetLat = midLat + (latDiff * 2.5) % 1;
+  const offsetLng = midLng + (lngDiff * 2.5) % 1;
+  
+  return getColorFromCoordinates(offsetLat, offsetLng);
 }
 
 /**

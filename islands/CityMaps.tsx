@@ -65,8 +65,6 @@ function useMatchedCityPoints({
     pairings,
     sourceCity,
     targetCity,
-    sourceCityName,
-    targetCityName,
 }: MatchedPointsParams): Signal<MatchedPoint[]> {
     return useComputed(() => {
         if (!hoverPoint.value || pairings.value.length === 0) {
@@ -75,7 +73,7 @@ function useMatchedCityPoints({
 
         // Find target city points that are paired with source city points near the hover
         const [hlat, hlng] = hoverPoint.value;
-        
+
         // Maximum distance to consider - about 5km
         const MAX_DISTANCE = 0.05;
 
@@ -93,39 +91,41 @@ function useMatchedCityPoints({
                 );
 
                 // Match if within radius
-                return distance < MAX_DISTANCE; 
+                return distance < MAX_DISTANCE;
             });
 
         // From those pairings, extract the relevant points
         const matchedPoints = relevantPairings.flatMap((pairing) => {
             const sourcePoint = pairing[sourceCity];
             const targetPoint = pairing[targetCity];
-            
-            if (!isLocationPoint(sourcePoint) || !isLocationPoint(targetPoint)) {
+
+            if (
+                !isLocationPoint(sourcePoint) || !isLocationPoint(targetPoint)
+            ) {
                 return [];
             }
-            
+
             const [plat, plng] = sourcePoint.coordinates;
-            
+
             // Calculate distance for weighting
             const distance = Math.sqrt(
-                Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2)
+                Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
             );
-            
+
             const normalizedDistance = distance / MAX_DISTANCE; // Normalize distance to 0-1 range
-            
+
             // Generate a consistent color for this pairing based on both coordinates
             const color = getPairingColor(
                 sourcePoint.coordinates,
-                targetPoint.coordinates
+                targetPoint.coordinates,
             );
-            
+
             // Return only the target point (the other map's point)
             return [{
                 coordinates: targetPoint.coordinates,
                 distance: normalizedDistance,
                 color,
-                pairingId: sourceCity + "-" + targetCity
+                pairingId: sourceCity + "-" + targetCity, // Make sure pairingId is always provided
             }];
         });
 
@@ -170,116 +170,118 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
         sourceCityName: city1.name,
         targetCityName: city2.name,
     });
-    
+
     // Source points on map 1 when hovering on map 1 (self-matching)
     const city1SourcePoints = useComputed(() => {
         if (!city1HoverPoint.value || pairings.value.length === 0) {
             return [];
         }
-        
+
         const [hlat, hlng] = city1HoverPoint.value;
         const MAX_DISTANCE = 0.05;
-        
+
         // Find any points on the same map that are close to where we're hovering
         return pairings.value
-            .filter(pairing => {
+            .filter((pairing) => {
                 const point = pairing[city1Key];
                 if (!isLocationPoint(point)) return false;
-                
+
                 const [plat, plng] = point.coordinates;
                 const distance = Math.sqrt(
-                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2)
+                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
                 );
-                
+
                 return distance < MAX_DISTANCE;
             })
-            .map(pairing => {
+            .map((pairing) => {
                 const sourcePoint = pairing[city1Key];
                 const targetPoint = pairing[city2Key];
-                
-                if (!isLocationPoint(sourcePoint) || !isLocationPoint(targetPoint)) return null;
-                
+
+                if (
+                    !isLocationPoint(sourcePoint) ||
+                    !isLocationPoint(targetPoint)
+                ) return null;
+
                 const [plat, plng] = sourcePoint.coordinates;
                 const distance = Math.sqrt(
-                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2)
+                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
                 );
-                
+
                 // Generate the color based on both coordinates in the pairing
                 const color = getPairingColor(
-                    sourcePoint.coordinates, 
-                    targetPoint.coordinates
+                    sourcePoint.coordinates,
+                    targetPoint.coordinates,
                 );
-                
+
                 return {
                     coordinates: sourcePoint.coordinates,
                     distance: distance / MAX_DISTANCE,
                     color,
-                    pairingId: city1Key + "-" + city2Key
+                    pairingId: city1Key + "-" + city2Key,
                 };
             })
-            .filter((point): point is MatchedPoint => 
-                point !== null
-            );
+            .filter((point): point is MatchedPoint => point !== null);
     });
-    
+
     // Source points on map 2 when hovering on map 2 (self-matching)
     const city2SourcePoints = useComputed(() => {
         if (!city2HoverPoint.value || pairings.value.length === 0) {
             return [];
         }
-        
+
         const [hlat, hlng] = city2HoverPoint.value;
         const MAX_DISTANCE = 0.05;
-        
+
         // Find any points on the same map that are close to where we're hovering
         return pairings.value
-            .filter(pairing => {
+            .filter((pairing) => {
                 const point = pairing[city2Key];
                 if (!isLocationPoint(point)) return false;
-                
+
                 const [plat, plng] = point.coordinates;
                 const distance = Math.sqrt(
-                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2)
+                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
                 );
-                
+
                 return distance < MAX_DISTANCE;
             })
-            .map(pairing => {
+            .map((pairing) => {
                 const sourcePoint = pairing[city2Key];
                 const targetPoint = pairing[city1Key];
-                
-                if (!isLocationPoint(sourcePoint) || !isLocationPoint(targetPoint)) return null;
-                
+
+                if (
+                    !isLocationPoint(sourcePoint) ||
+                    !isLocationPoint(targetPoint)
+                ) return null;
+
                 const [plat, plng] = sourcePoint.coordinates;
                 const distance = Math.sqrt(
-                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2)
+                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
                 );
-                
+
                 // Generate the color based on both coordinates in the pairing
                 const color = getPairingColor(
-                    sourcePoint.coordinates, 
-                    targetPoint.coordinates
+                    sourcePoint.coordinates,
+                    targetPoint.coordinates,
                 );
-                
+
                 return {
                     coordinates: sourcePoint.coordinates,
                     distance: distance / MAX_DISTANCE,
                     color,
-                    pairingId: city2Key + "-" + city1Key
+                    pairingId: city2Key + "-" + city1Key,
                 };
             })
-            .filter((point): point is MatchedPoint => 
-                point !== null
-            );
+            .filter((point): point is MatchedPoint => point !== null);
     });
-    
+
     // Combined points for map 1 (matches from map 2 hover + self matches from map 1 hover)
-    const map1Points = useComputed(() => {
+    const map1Points = useComputed<MatchedPoint[]>(() => {
         return [...city1MatchedPoints.value, ...city1SourcePoints.value];
     });
-    
+
     // Combined points for map 2 (matches from map 1 hover + self matches from map 2 hover)
-    const map2Points = useComputed(() => {
+    const map2Points = useComputed<MatchedPoint[]>(() => {
         return [...city2MatchedPoints.value, ...city2SourcePoints.value];
     });
 
@@ -297,28 +299,10 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
     // Functions to handle hover
     const handleCity1Hover = (point: [number, number] | null) => {
         city1HoverPoint.value = point;
-        if (point) {
-            setDebug(
-                `${city1.name} hover: ${point[0].toFixed(5)}, ${
-                    point[1].toFixed(5)
-                }`,
-            );
-        } else {
-            setDebug(null);
-        }
     };
 
     const handleCity2Hover = (point: [number, number] | null) => {
         city2HoverPoint.value = point;
-        if (point) {
-            setDebug(
-                `${city2.name} hover: ${point[0].toFixed(5)}, ${
-                    point[1].toFixed(5)
-                }`,
-            );
-        } else {
-            setDebug(null);
-        }
     };
 
     // Reset all state when cities change
@@ -435,12 +419,6 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
                         onPointHover={handleCity1Hover}
                         matchedPoints={map1Points}
                     />
-                    {map1Points.value.length > 0 && (
-                        <div class="mt-1 p-2 bg-amber-50 border border-amber-200 rounded-md">
-                            Found {map1Points.value.length}{" "}
-                            matched points
-                        </div>
-                    )}
                 </div>
 
                 <div class="bg-white p-4 rounded-lg shadow">
@@ -454,12 +432,6 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
                         onPointHover={handleCity2Hover}
                         matchedPoints={map2Points}
                     />
-                    {map2Points.value.length > 0 && (
-                        <div class="mt-1 p-2 bg-amber-50 border border-amber-200 rounded-md">
-                            Found {map2Points.value.length}{" "}
-                            matched points
-                        </div>
-                    )}
                 </div>
             </div>
 
