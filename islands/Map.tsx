@@ -492,12 +492,6 @@ export default function Map({
                     </div>
                 )}
             </div>
-            {selectedPoint.value && (
-                <div class="mt-2 text-sm">
-                    Selected: {selectedPoint.value[0].toFixed(5)},{" "}
-                    {selectedPoint.value[1].toFixed(5)}
-                </div>
-            )}
             {debugMessage && (
                 <div class="mt-1 text-xs text-blue-600">
                     {debugMessage}

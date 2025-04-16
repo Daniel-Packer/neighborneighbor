@@ -55,8 +55,6 @@ export default function PairingControls({ city1, city2, onPairingCreated }: Pair
         
         // Call the callback to notify parent component
         onPairingCreated?.();
-        
-        alert("Locations paired successfully!");
       } else {
         alert("Failed to pair locations. Please try again.");
       }
@@ -68,20 +66,6 @@ export default function PairingControls({ city1, city2, onPairingCreated }: Pair
 
   return (
     <div class="mt-6 flex flex-col items-center">
-      <div class="flex flex-wrap justify-center gap-4 mb-4">
-        <div class="px-4 py-2 bg-gray-100 rounded-lg">
-          <span class="font-semibold">{city1.name}:</span> {city1.point.value ? 
-            `${city1.point.value[0].toFixed(5)}, ${city1.point.value[1].toFixed(5)}` : 
-            'Not selected'}
-        </div>
-        
-        <div class="px-4 py-2 bg-gray-100 rounded-lg">
-          <span class="font-semibold">{city2.name}:</span> {city2.point.value ? 
-            `${city2.point.value[0].toFixed(5)}, ${city2.point.value[1].toFixed(5)}` : 
-            'Not selected'}
-        </div>
-      </div>
-      
       <button 
         onClick={handlePairLocations}
         disabled={!city1.point.value || !city2.point.value}
