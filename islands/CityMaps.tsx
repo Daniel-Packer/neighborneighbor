@@ -58,7 +58,7 @@ function isValidPairingRecord(
     return true;
 }
 
-// Helper function to find matched points between cities
+// Helper function to find matched points between cities with distance information
 function useMatchedCityPoints({
     hoverPoint,
     pairings,
@@ -66,7 +66,7 @@ function useMatchedCityPoints({
     targetCity,
     sourceCityName,
     targetCityName,
-}: MatchedPointsParams): Signal<[number, number][]> {
+}: MatchedPointsParams): Signal<Array<{ coordinates: [number, number], distance: number }>> {
     return useComputed(() => {
         if (!hoverPoint.value || pairings.value.length === 0) {
             return [];
@@ -80,6 +80,9 @@ function useMatchedCityPoints({
             }, ${hlng.toFixed(5)}`,
         );
 
+        // Maximum distance to consider - about 5km
+        const MAX_DISTANCE = 0.05;
+
         const matchedPoints = pairings.value
             .filter((pairing) => {
                 const sourcePoint = pairing[sourceCity];
@@ -92,27 +95,32 @@ function useMatchedCityPoints({
                     Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
                 );
 
-                // Match if within a small radius
-                const isNearby = distance < 0.01; // About 5km
-                if (isNearby) {
-                    console.log(
-                        `Found nearby ${sourceCityName} point at ${
-                            plat.toFixed(5)
-                        }, ${plng.toFixed(5)}, distance: ${
-                            distance.toFixed(5)
-                        }`,
-                    );
-                }
-                return isNearby;
+                // Match if within radius
+                return distance < MAX_DISTANCE; 
             })
             .map((pairing) => {
+                const sourcePoint = pairing[sourceCity];
                 const targetPoint = pairing[targetCity];
-                return isLocationPoint(targetPoint)
-                    ? targetPoint.coordinates
-                    : null;
+                
+                if (!isLocationPoint(sourcePoint) || !isLocationPoint(targetPoint)) {
+                    return null;
+                }
+                
+                const [plat, plng] = sourcePoint.coordinates;
+                
+                // Calculate distance for weighting
+                const distance = Math.sqrt(
+                    Math.pow(plat - hlat, 2) + Math.pow(plng - hlng, 2),
+                );
+                
+                // Return coordinates and normalized distance
+                return {
+                    coordinates: targetPoint.coordinates,
+                    distance: distance / MAX_DISTANCE // Normalize distance to 0-1 range
+                };
             })
-            .filter((coordinates): coordinates is [number, number] =>
-                coordinates !== null
+            .filter((point): point is { coordinates: [number, number], distance: number } => 
+                point !== null
             );
 
         console.log(
@@ -354,25 +362,6 @@ export default function CityMaps({ cities, cityKeys }: CityMapsProps) {
             {isLoading.value && (
                 <div class="mt-4 p-2 bg-gray-50 border border-gray-200 rounded-md text-center">
                     Loading pairings...
-                </div>
-            )}
-
-            {!isLoading.value && pairings.value.length === 0 && (
-                <div class="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded-md text-center">
-                    No pairings available yet for{" "}
-                    {city1.name}-{city2.name}. Create some!
-                </div>
-            )}
-
-            {!isLoading.value && pairings.value.length > 0 && (
-                <div class="mt-4 p-2 bg-green-50 border border-green-200 rounded-md text-center">
-                    {pairings.value.length} pairings loaded for{" "}
-                    {city1.name}-{city2.name}
-                    {lastFetch && (
-                        <span class="text-xs block text-gray-500">
-                            Last updated: {lastFetch.toLocaleTimeString()}
-                        </span>
-                    )}
                 </div>
             )}
 

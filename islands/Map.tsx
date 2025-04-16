@@ -55,7 +55,7 @@ interface MapProps {
   selectedPoint: Signal<[number, number] | null>;
   onPointSelect: (point: [number, number]) => void;
   onPointHover?: (point: [number, number] | null) => void;
-  matchedPoints?: Signal<[number, number][]>;
+  matchedPoints?: Signal<Array<{ coordinates: [number, number], distance: number }>>;
 }
 
 export default function Map({ 
@@ -328,46 +328,72 @@ export default function Map({
       // Create markers for each point with better error handling
       points.forEach((point, index) => {
         try {
-          console.log(`Creating marker at ${point[0]}, ${point[1]} for ${id}`);
+          console.log(`Creating marker at ${point.coordinates[0]}, ${point.coordinates[1]} for ${id} with distance ${point.distance}`);
           
           // Check if the point is valid
-          if (!Array.isArray(point) || point.length !== 2 || 
-              typeof point[0] !== 'number' || typeof point[1] !== 'number') {
+          if (!Array.isArray(point.coordinates) || point.coordinates.length !== 2 || 
+              typeof point.coordinates[0] !== 'number' || typeof point.coordinates[1] !== 'number') {
             console.error(`Invalid point at index ${index}:`, point);
             return; // Skip this point
           }
           
-          // Create a much more visible marker
-          const marker = L.marker([point[0], point[1]], {
+          // Calculate size and opacity based on distance
+          // For points with distance close to 0, we want larger size and full opacity
+          // For points with distance close to 1, we want smaller size and lower opacity
+          // Use an inverse relationship with distance
+          const distanceFactor = 1 - Math.min(1, Math.max(0, point.distance));
+          
+          // Size ranges from 8px (far) to 24px (near)
+          const size = 8 + (distanceFactor * 16);
+          
+          // Opacity ranges from 0.3 (far) to 1.0 (near)
+          const opacity = 0.3 + (distanceFactor * 0.7);
+          
+          // Border width ranges from 1px (far) to 3px (near)
+          const borderWidth = 1 + (distanceFactor * 2);
+          
+          // Create a much more visible marker with distance-based styling
+          const marker = L.marker([point.coordinates[0], point.coordinates[1]], {
             icon: L.divIcon({
               className: 'matched-marker',
               html: `<div style="
-                width: 16px;
-                height: 16px;
+                width: ${size}px;
+                height: ${size}px;
                 background-color: #FF5500;
                 border-radius: 50%;
-                border: 3px solid white;
+                border: ${borderWidth}px solid white;
                 box-shadow: 0 0 6px rgba(0,0,0,0.8);
-                opacity: 1;
+                opacity: ${opacity};
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
               "></div>`,
-              iconSize: [16, 16],
-              iconAnchor: [8, 8]
+              iconSize: [0, 0], // Set to zero to prevent default sizing
+              iconAnchor: [0, 0] // Let the CSS handle the positioning instead
             })
           });
           
           // Add marker to map
           marker.addTo(currentMapInstance);
           
-          // Add a popup to show coordinates
-          marker.bindPopup(`Paired point: ${point[0].toFixed(5)}, ${point[1].toFixed(5)}`);
+          // Format distance as percentage (0% = closest, 100% = furthest)
+          const distancePercent = Math.round(point.distance * 100);
+          
+          // Add a popup to show coordinates and distance
+          marker.bindPopup(`
+            <strong>Paired point</strong><br>
+            Coordinates: ${point.coordinates[0].toFixed(5)}, ${point.coordinates[1].toFixed(5)}<br>
+            Distance: ${distancePercent}% (${distancePercent === 0 ? 'closest' : distancePercent === 100 ? 'furthest' : 'relative'})
+          `);
           
           // Store the marker reference
           matchedMarkersRef.current.push(marker);
           
-          console.log(`Marker added for ${id} at ${point[0]}, ${point[1]}`);
+          console.log(`Marker added for ${id} at ${point.coordinates[0]}, ${point.coordinates[1]} with size ${size}px and opacity ${opacity}`);
           
         } catch (error) {
-          console.error(`Error adding marker for ${id} at ${point}:`, error);
+          console.error(`Error adding marker for ${id} at ${point.coordinates}:`, error);
         }
       });
       
